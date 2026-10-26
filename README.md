@@ -91,7 +91,7 @@ The main kernel arguments (the full list is in `docs/ru/notes.md`):
 | Argument | What it does |
 |---|---|
 | `cpus=8 bootcpu=7 cpufreq=1` | all CPU cores and their clocks |
-| `touchscreen=1` | the touch screen |
+| `touchscreen=1` | the touch screen (`touchscreen=2`: the Redmi K20 Pro's, on I2C) |
 | `gpu=1` | rendering on Adreno (an image built with `GL=1`, firmware in `fw-gpu/`) |
 | `adsp=1 sound=4 mic=4` | the audio DSP: speakers, microphone; battery and charging come with it |
 | `haptic=5` | the vibration motor |
