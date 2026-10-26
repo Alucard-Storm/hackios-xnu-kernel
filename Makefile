@@ -14,12 +14,14 @@
 #   make prebuilt        refresh prebuilt/ from what was built (tools/update-prebuilt.sh)
 #   make clean           build output of the kernel, loader and images
 #
-#   DEVICE=poco-x5-pro   the device directory under devices/ (default poco-x5-pro)
+#   DEVICE=poco-x5-pro   the device directory under devices/ (default poco-x5-pro): its pull-*.sh, soc.args,
+#                        device.conf and prebuilt/ are used by firmware, phone, prebuilt and the image tools
 #   ARGS="..."           kernel arguments for make phone (default: everything the phone has)
 #   SECS=600             the session's length for make phone / make qemu
 #   JOBS=8               parallel jobs for the kernel build
 
 DEVICE ?= poco-x5-pro
+export DEVICE
 JOBS ?= 8
 SECS ?= 600
 ARGS_OPEN ?= cpus=1
@@ -29,7 +31,7 @@ IMAGE_OPTS ?= REST=1
 .PHONY: help fetch images kernel loader loader-open hello qemu qemu-open phone prebuilt clean all
 
 help:
-	@sed -n '2,23p' Makefile | sed 's/^# \{0,1\}//'
+	@sed -n '2,21p' Makefile | sed 's/^# \{0,1\}//'
 
 all: kernel loader images
 

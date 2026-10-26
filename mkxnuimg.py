@@ -1,32 +1,51 @@
 #!/usr/bin/env python3
 """
-Pack the redwood UEFI (with the hook that starts the XNU loader) and an optional payload
+Pack the phone's UEFI (with the hook that starts the XNU loader) and an optional payload
 into an Android boot image for `fastboot boot`.
 
   kernel = gzip(BootShim + UEFI FD + ["XNUP" container]) + DTB
 
 The boot shim copies the FD to its base and the payload to PAYLOAD_BASE.
 
-The UEFI pieces are taken from a Mu-Silicium tree built here (Mu-Silicium/, see devices/poco-x5-pro/uefi/README.md)
-or, when there is none, from devices/poco-x5-pro/prebuilt/.
+The UEFI pieces are taken from a Mu-Silicium tree built here (Mu-Silicium/, see devices/<device>/uefi/README.md)
+or, when there is none, from devices/<device>/prebuilt/. The device is $DEVICE (default poco-x5-pro) or -d;
+its devices/<device>/device.conf names the Mu-Silicium codename and the memory map.
 
-usage: mkxnuimg.py [-p payload.bin] [-o out.img]
+usage: mkxnuimg.py [-d device] [-p payload.bin] [-o out.img]
 """
 import argparse, gzip, os, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MU = os.path.join(HERE, 'Mu-Silicium')
-PREBUILT = os.path.join(HERE, 'devices', 'poco-x5-pro', 'prebuilt')
-FD_BASE, FD_SIZE = 0x9FD00000, 0x200000
-PAYLOAD_BASE, PAYLOAD_MAX = 0xF0000000, 0x04000000
+PAYLOAD_MAX = 0x04000000
 
 ap = argparse.ArgumentParser()
+ap.add_argument('-d', '--device', default=os.environ.get('DEVICE', 'poco-x5-pro'))
 ap.add_argument('-p', '--payload')
-ap.add_argument('-o', '--output', default=os.path.join(HERE, 'xnu-redwood.img'))
+ap.add_argument('-o', '--output')
 ap.add_argument('--mode', default='RELEASE')
 args = ap.parse_args()
 
-fd_path = os.path.join(MU, f'Build/redwoodPkg/{args.mode}_CLANGPDB/FV/SILICIUM_UEFI.fd')
+dev_dir = os.path.join(HERE, 'devices', args.device)
+conf = {}
+try:
+    for line in open(os.path.join(dev_dir, 'device.conf')):
+        line = line.split('#', 1)[0].strip()
+        if '=' in line:
+            k, v = line.split('=', 1)
+            conf[k.strip()] = v.strip()
+except FileNotFoundError:
+    sys.exit(f'mkxnuimg.py: no devices/{args.device}/device.conf')
+for key in ('CODENAME', 'FD_BASE', 'FD_SIZE', 'PAYLOAD_BASE'):
+    if key not in conf:
+        sys.exit(f'mkxnuimg.py: {key} is not set in devices/{args.device}/device.conf (the port is not far enough along)')
+CODENAME = conf['CODENAME']
+FD_BASE, FD_SIZE, PAYLOAD_BASE = (int(conf[k], 0) for k in ('FD_BASE', 'FD_SIZE', 'PAYLOAD_BASE'))
+PREBUILT = os.path.join(dev_dir, 'prebuilt')
+if not args.output:
+    args.output = os.path.join(HERE, f'xnu-{CODENAME}.img')
+
+fd_path = os.path.join(MU, f'Build/{CODENAME}Pkg/{args.mode}_CLANGPDB/FV/SILICIUM_UEFI.fd')
 if os.path.isfile(fd_path):
     shim_dir = os.path.join(MU, 'BootShim')
     for f in ('BootShim.elf', 'BootShim.bin'):
@@ -36,7 +55,7 @@ if os.path.isfile(fd_path):
                            f'CFLAGS=--target=aarch64-linux-gnu -DPAYLOAD_BASE={PAYLOAD_BASE:#x}'],
                           cwd=shim_dir, stdout=subprocess.DEVNULL)
     parts = {'shim': os.path.join(shim_dir, 'BootShim.bin'), 'fd': fd_path,
-             'dtb': os.path.join(MU, 'Resources/DTBs/redwood.dtb'), 'ramdisk': os.path.join(MU, 'Resources/ramdisk'),
+             'dtb': os.path.join(MU, f'Resources/DTBs/{CODENAME}.dtb'), 'ramdisk': os.path.join(MU, 'Resources/ramdisk'),
              'mkbootimg': os.path.join(MU, 'Resources/Scripts/mkbootimg.py')}
 else:
     parts = {'shim': os.path.join(PREBUILT, 'BootShim.bin'), 'fd': os.path.join(PREBUILT, 'SILICIUM_UEFI.fd'),
