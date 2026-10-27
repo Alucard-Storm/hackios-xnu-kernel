@@ -23,9 +23,11 @@
 DEVICE ?= poco-x5-pro
 export DEVICE
 JOBS ?= 8
-SECS ?= 600
+SECS ?= $(or $(call conf,PHONE_SECS),600)
 ARGS_OPEN ?= cpus=1
-ARGS ?= touchscreen=1 gpu=1 adsp=1 sound=4 wifi=1 haptic=5 modem=1 modem_again=1 modem_buffer=0xa8000000
+# a device's own: devices/$(DEVICE)/device.conf (KEY=VALUE lines)
+conf = $(shell sed -n 's/^$(1)=//p' devices/$(DEVICE)/device.conf 2>/dev/null)
+ARGS ?= $(call conf,PHONE_ARGS)
 IMAGE_OPTS ?= REST=1
 
 .PHONY: help fetch images kernel loader loader-open hello qemu qemu-open phone prebuilt clean all

@@ -29,3 +29,5 @@ jobs:
           [ -x tools/apfs/run-tests.sh ] && tools/apfs/run-tests.sh || echo "no self-test on this runner"
       - name: SoC args generator reproduces the POCO X5 Pro values
         run: sh tools/soc-args-test.sh
+      - name: Every device's settings are complete and the Makefile reads them
+        run: sh tools/device-conf-test.sh
