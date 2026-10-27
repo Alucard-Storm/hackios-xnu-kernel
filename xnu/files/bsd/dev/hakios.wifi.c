@@ -189,6 +189,8 @@ static LCK_GRP_DECLARE(wifi_lock_group, "hakios-wifi");
  */
 LCK_MTX_DECLARE(hakios_aop_mailbox_lock, &wifi_lock_group);
 LCK_MTX_DECLARE(hakios_smem_alloc_lock, &wifi_lock_group);
+/* one TrustZone call at a time, whoever makes it (the GPU, the audio DSP, the Wi-Fi DSP, the modem): two at once have hung the phone */
+LCK_MTX_DECLARE(hakios_scm_lock, &wifi_lock_group);
 LCK_MTX_DECLARE(hakios_rsc_lock, &wifi_lock_group);      /* RPMh's sequencer (TCS 0 of the RSC): the audio DSP's and the modem's drivers both ask through it */
 /* ... and the sound's (hakios.sound.c): a free match register and context of the SMMU, found and taken */
 LCK_MTX_DECLARE(hakios_smmu_lock, &wifi_lock_group);
@@ -1731,6 +1733,7 @@ scm(const char *what, uint64_t function, uint64_t arguments, uint64_t first, uin
 	    second, third);
 	snprintf(last_write, sizeof(last_write), "step %u asked TrustZone %#llx(%#llx, %#llx)", step, function, first, second);
 	hold(true);
+	lck_mtx_lock(&hakios_scm_lock);
 	for (int i = 0; i < 100; i++) {
 		register uint64_t x0 __asm__("x0") = i == 0 ? function : SCM_INTERRUPTED;
 		register uint64_t x1 __asm__("x1") = arguments;
@@ -1747,10 +1750,12 @@ scm(const char *what, uint64_t function, uint64_t arguments, uint64_t first, uin
 		if (x0 != SCM_INTERRUPTED) {
 			printf("wifi: %u: TrustZone returns %d, answer %#llx\n", step, (int32_t)x0, x1);
 			*answer = x1;
+			lck_mtx_unlock(&hakios_scm_lock);
 			return (int32_t)x0;
 		}
 	}
 	printf("wifi: %u: TrustZone keeps saying the call was interrupted\n", step);
+	lck_mtx_unlock(&hakios_scm_lock);
 	return -1;
 }
 
