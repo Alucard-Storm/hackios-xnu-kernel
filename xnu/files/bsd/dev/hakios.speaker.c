@@ -729,6 +729,9 @@ faulty(struct amplifier *a, uint16_t *status)
 bool
 hakios_speaker_prepare(const uint8_t *acf, uint64_t size)
 {
+	if (hakios_tfa_model()) {
+		return hakios_tfa_prepare();
+	}
 	if (tlmm == 0) {
 		tlmm = ml_io_map(TLMM_PHYS, TLMM_SIZE);
 	}
@@ -819,6 +822,9 @@ hakios_speaker_prepare(const uint8_t *acf, uint64_t size)
 bool
 hakios_speaker_start(void)
 {
+	if (hakios_tfa_model()) {
+		return hakios_tfa_start();
+	}
 	for (unsigned i = 0; i < 2; i++) {
 		struct amplifier *a = &amplifiers[i];
 		uint16_t status = 0, interrupts = 0;
@@ -890,6 +896,9 @@ hakios_speaker_start(void)
 bool
 hakios_speaker_volume(uint32_t below, uint32_t step_ms)
 {
+	if (hakios_tfa_model()) {
+		return hakios_tfa_volume(below, step_ms);
+	}
 	uint16_t status;
 
 	for (unsigned i = 0; i < 2; i++) {
@@ -945,6 +954,9 @@ hakios_speaker_volume(uint32_t below, uint32_t step_ms)
 bool
 hakios_speaker_healthy(void)
 {
+	if (hakios_tfa_model()) {
+		return hakios_tfa_healthy();
+	}
 	for (unsigned i = 0; i < 2; i++) {
 		struct amplifier *a = &amplifiers[i];
 		uint16_t status;
@@ -989,6 +1001,9 @@ monitor_row(const struct amplifier *a, bool temperature, int value, int before)
 uint32_t
 hakios_speaker_monitor(bool tell)
 {
+	if (hakios_tfa_model()) {
+		return 0;
+	}
 	uint32_t wanted = 0;
 
 	for (unsigned i = 0; i < 2; i++) {
@@ -1032,6 +1047,10 @@ hakios_speaker_monitor(bool tell)
 void
 hakios_speaker_stop(void)
 {
+	if (hakios_tfa_model()) {
+		hakios_tfa_stop();
+		return;
+	}
 	if (broken) {
 		return;                 /* (already powered down) */
 	}
@@ -1067,6 +1086,10 @@ hakios_speaker_stop(void)
 void
 hakios_speaker_quiesce(void)
 {
+	if (hakios_tfa_model()) {
+		hakios_tfa_quiesce();
+		return;
+	}
 	bool any = false;
 
 	for (unsigned i = 0; i < 2; i++) {
