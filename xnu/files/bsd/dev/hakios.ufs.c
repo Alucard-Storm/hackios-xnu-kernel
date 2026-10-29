@@ -105,6 +105,7 @@ struct loader_block {
 	uint32_t write_part_plus_one;
 	uint32_t write_reserved;
 	uint64_t write_first;
+	uint64_t write_end;            /* the end of the window, in the partition's blocks (0: an older loader) */
 	struct {
 		volatile uint32_t request;
 		uint32_t part;
@@ -204,6 +205,7 @@ static int ufs_var_busy_pid;
 
 /* ufs_write=1 and the one partition it is for: everything else answers EROFS as it always did */
 static int ufs_write_part = -1;
+static uint64_t ufs_write_lo, ufs_write_hi;     /* the blocks a write may reach: [lo, hi) */
 static volatile bool ufs_write_busy;            /* a write of ours has this kernel's list out: not a failure */
 static bool ufs_write_out, ufs_write_was_native;        /* the list is out for writing, and was in before */
 static uint64_t ufs_writes, ufs_write_bytes, ufs_write_errors, ufs_write_refused;
@@ -576,8 +578,8 @@ ufs_write(uint32_t part, uint64_t offset, const uint8_t *src, uint64_t len)
 	if (len == 0 || offset % nbs != 0 || len % nbs != 0) {
 		return EINVAL;          /* whole blocks only: nothing is read before a write */
 	}
-	if (offset / nbs < UFS_WRITE_FIRST || offset > ufs_part_bytes(part) ||
-	    len > ufs_part_bytes(part) - offset) {
+	if (offset / nbs < ufs_write_lo || offset > ufs_part_bytes(part) ||
+	    len > ufs_part_bytes(part) - offset || offset / nbs + len / nbs > ufs_write_hi) {
 		/* the iOS volume, the cryptexes, and anything past the partition's end: never */
 		ufs_write_refused++;
 		return EROFS;
@@ -1534,45 +1536,62 @@ hakios_ufs_init(void)
 	check = 0;
 	if (PE_parse_boot_argn("ufs_write", &check, sizeof(check)) && check == 1) {
 		uint32_t offered = ufs_page->write_part_plus_one;
+		const char *store_name = "darwin";
 
-		if (offered == 0 || offered > ufs_parts || ufs_page->write_first != UFS_WRITE_FIRST) {
+		if (offered == 0 || offered > ufs_parts) {
 			printf("ufs: the loader offers no partition to write into (ufs_write=1 on its command "
 			    "line too, and a loader that knows about writes)\n");
+			offered = 0;
 		}
-		for (uint32_t i = 0; offered != 0 && i < ufs_parts; i++) {
+		if (offered != 0) {
+			uint32_t i = offered - 1;
+			bool darwin = strncmp((const char *)ufs_page->part[i].name, "darwin", 7) == 0;
 			const char *why = NULL;
+			uint64_t lo = darwin ? UFS_WRITE_FIRST : ufs_page->write_first;
+			uint64_t hi = darwin ? UFS_DARWIN_BLOCKS : ufs_page->write_end;
 
-			if (strncmp((const char *)ufs_page->part[i].name, "darwin", 7) != 0) {
-				continue;
+			/*
+			 * darwin is the port's own partition and its identity is known here too. Any other
+			 * partition is one the host pinned at the loader ("xl store": its GUID and block range
+			 * as it read them from the GPT, and the window it chose); the loader has checked all
+			 * of that, and this side takes the window it announces after checking it is inside
+			 * the partition.
+			 */
+			if (!darwin) {
+				store_name = (const char *)ufs_page->part[i].name;
 			}
-			if (i != offered - 1) {
-				why = "the loader offers another partition";
-			} else if (ufs_page->part[i].flags & BLOCK_PART_UNIT) {
+			if (ufs_page->part[i].flags & BLOCK_PART_UNIT) {
 				why = "it is a whole logical unit, not the partition";
 			} else if (ufs_page->part[i].unit != 0) {
 				/* the first unit UEFI lists, which this kernel's own driver reads as LUN 0 and
 				 * has compared with the loader's reads; the device path this firmware gives
 				 * says no logical unit number at all, so part[].lun is 0xff for every unit */
 				why = "it is not on the first logical unit";
-			} else if (ufs_page->part[i].start_lba != UFS_DARWIN_FIRST) {
-				why = "it does not begin where it did";
-			} else if (ufs_page->part[i].blocks != UFS_DARWIN_BLOCKS) {
-				why = "it is not the size it was";
 			} else if (ufs_page->part[i].block_size != 4096) {
 				why = "its blocks are not 4096 bytes";
+			} else if (darwin && ufs_page->write_first != UFS_WRITE_FIRST) {
+				why = "the window is not the one it was";
+			} else if (darwin && ufs_page->part[i].start_lba != UFS_DARWIN_FIRST) {
+				why = "it does not begin where it did";
+			} else if (darwin && ufs_page->part[i].blocks != UFS_DARWIN_BLOCKS) {
+				why = "it is not the size it was";
+			} else if (lo == 0 || lo >= hi || hi > ufs_page->part[i].blocks) {
+				why = "the window is not inside it";
 			}
 			if (why != NULL) {
-				printf("ufs: darwin: no write will be asked for: %s\n", why);
-				continue;
+				printf("ufs: %s: no write will be asked for: %s\n", store_name, why);
+			} else {
+				ufs_write_part = (int)i;
+				ufs_write_lo = lo;
+				ufs_write_hi = hi;
 			}
-			ufs_write_part = (int)i;
 		}
 		if (ufs_write_part >= 0) {
-			printf("ufs: /dev/rufs_darwin takes writes, whole blocks from %llu on (%llu MB of it); "
-			    "everything else of the storage is read only\n", UFS_WRITE_FIRST,
-			    (UFS_DARWIN_BLOCKS - UFS_WRITE_FIRST) * 4096 >> 20);
+			printf("ufs: /dev/rufs_%s takes writes, whole blocks %llu to %llu (%llu MB of it); "
+			    "everything else of the storage is read only\n", store_name, ufs_write_lo, ufs_write_hi,
+			    (ufs_write_hi - ufs_write_lo) * 4096 >> 20);
 		} else {
-			printf("ufs: nothing takes writes: darwin is not among the partitions\n");
+			printf("ufs: nothing takes writes\n");
 		}
 	}
 
