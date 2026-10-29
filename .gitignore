@@ -95,3 +95,5 @@ __pycache__/
 /xnuloader/identity.h
 !/xnuloader/im4p.py
 !/xnuloader/mkidentity.sh
+devices/raphael/.bin/
+tools/android/hakios-img
