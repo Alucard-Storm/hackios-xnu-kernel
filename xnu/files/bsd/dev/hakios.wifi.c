@@ -190,6 +190,8 @@ static LCK_GRP_DECLARE(wifi_lock_group, "hakios-wifi");
  */
 LCK_MTX_DECLARE(hakios_aop_mailbox_lock, &wifi_lock_group);
 LCK_MTX_DECLARE(hakios_smem_alloc_lock, &wifi_lock_group);
+/* one TrustZone call at a time, whoever makes it (the GPU, the audio DSP, the Wi-Fi DSP, the modem): two at once have hung the phone */
+LCK_MTX_DECLARE(hakios_scm_lock, &wifi_lock_group);
 LCK_MTX_DECLARE(hakios_rsc_lock, &wifi_lock_group);      /* RPMh's sequencer (TCS 0 of the RSC): the audio DSP's and the modem's drivers both ask through it */
 /* ... and the sound's (hakios.sound.c): a free match register and context of the SMMU, found and taken */
 LCK_MTX_DECLARE(hakios_smmu_lock, &wifi_lock_group);
