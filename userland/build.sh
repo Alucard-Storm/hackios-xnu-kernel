@@ -216,7 +216,7 @@ if [ -d $IOS/rootfs/usr/lib ]; then
 		$DYN -o obj/vol_ls src/vol_ls.c
 		$DYN -framework CoreFoundation -framework CoreGraphics -framework ImageIO -o obj/snap_test src/snap_test.c
 		$DYN -framework CoreFoundation -framework CoreGraphics -framework CoreText -o obj/font_test src/font_test.c
-		$DYN -fobjc-arc -framework Foundation -framework SystemConfiguration -o obj/net_test src/net_test.m
+		$DYN -fobjc-arc -framework Foundation -framework SystemConfiguration -framework Network -o obj/net_test src/net_test.m
 		# (the account database answers only a client with the entitlements its own daemons hold: src/store_test.m)
 		$DYN -fobjc-arc -framework Foundation -framework Accounts -o obj/store_test src/store_test.m &&
 			{ ${LDID:-ldid} -Ssrc/store_test.entitlements obj/store_test 2>/dev/null ||
