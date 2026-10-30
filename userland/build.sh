@@ -216,7 +216,7 @@ if [ -d $IOS/rootfs/usr/lib ]; then
 		$DYN -o obj/vol_ls src/vol_ls.c
 		$DYN -framework CoreFoundation -framework CoreGraphics -framework ImageIO -o obj/snap_test src/snap_test.c
 		$DYN -framework CoreFoundation -framework CoreGraphics -framework CoreText -o obj/font_test src/font_test.c
-		$DYN -fobjc-arc -framework Foundation -framework SystemConfiguration -framework Network -o obj/net_test src/net_test.m
+		$DYN -fobjc-arc -framework Foundation -framework SystemConfiguration -framework Network -framework CoreTelephony -o obj/net_test src/net_test.m
 		# (the account database answers only a client with the entitlements its own daemons hold: src/store_test.m)
 		$DYN -fobjc-arc -framework Foundation -framework Accounts -o obj/store_test src/store_test.m &&
 			{ ${LDID:-ldid} -Ssrc/store_test.entitlements obj/store_test 2>/dev/null ||
@@ -390,7 +390,9 @@ if [ -d $IOS/rootfs/usr/lib ]; then
 	# and not by what select-system.py extracted here (--root-volume; seven jobs turn on the difference,
 	# fairplayd among them).
 	cp com.hakios.demo.plist com.hakios.wifi.plist root/LaunchDaemons/
-	[ "${DEVICE:-}" = raphael ] && cp com.hakios.wifi.raphael.plist root/LaunchDaemons/com.hakios.wifi.plist
+	# WIFI_DIAG=1: this device's diagnostic version of the Wi-Fi job: a few minutes into the run it reports what the system did with the
+	# network (addresses, configd's store, reachability, Network.framework, CoreTelephony, the services apps ask for)
+	[ "${DEVICE:-}" = raphael ] && [ -n "${WIFI_DIAG:-}" ] && cp com.hakios.wifi.raphael.plist root/LaunchDaemons/com.hakios.wifi.plist
 	# the network configuration iOS makes by itself on a first boot, which nothing here does: a Wi-Fi service for en0 by DHCP (src/init.c, seed_network_prefs)
 	[ "${DEVICE:-}" = raphael ] && cp network.preferences.plist root/etc/
 	VOLUME=""
